@@ -7,6 +7,6 @@ First attempt at threading: I'm pushing a commit with my first attempt at thread
 
 Runtime with initial attempt at threading: 15m
 
-After reviewing the code on blue, I rearranged mine and reran it and got much better time with the testcases and got 1 minute. 
+After reviewing the code on blue, I rearranged mine and reran it and got much better time with the testcases and got 1 minute. The output isn't quite there, though, and I'm trying to discover what the issue is.
 
 Runtime after rearranging with the example code on blue: 1m3.232s
