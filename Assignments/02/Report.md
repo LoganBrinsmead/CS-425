@@ -6,3 +6,7 @@ I ran the program initially without changing anything and got the runtime: 2m3.4
 First attempt at threading: I'm pushing a commit with my first attempt at threading with commit message "first attempt at threading". I attempted to thread the program by dividing the vector of records into tenths and processing the values that way. When it doesn't segfault, I am getting a worse runtime, but thought it would be worthwile to still push my attempt.
 
 Runtime with initial attempt at threading: 15m
+
+After reviewing the code on blue, I rearranged mine and reran it and got much better time with the testcases and got 1 minute. 
+
+Runtime after rearranging with the example code on blue: 1m3.232s
