@@ -15,7 +15,13 @@
 #include <iostream>
 #include <vector>
 
+#include <thread>
+#include <mutex>
+
 #include "LychrelData.h"
+
+#define DEBUG 1
+#define debug if (DEBUG) std::cout
 
 // A structure recording the starting number, and its final palindrome.
 //   An vector of these records (typedefed to "Records") is built during
@@ -30,21 +36,24 @@ using Records = std::vector<Record>;
 const size_t MaxIterations = 7500;
 const size_t MaxThreads = 10;
 
-//
-// --- main ---
-//
-int main() {
-    LychrelData data;
+size_t maxIter = 0;  // Records the current maximum number of iterations
 
-    std::cerr << "Processing " << data.size() << " values ...\n";
+LychrelData data;
 
-    size_t maxIter = 0;  // Records the current maximum number of iterations
-    Records records; // list of values that took maxIter iterations
+Records records; // list of values that took maxIter iterations
+
+
+std::mutex MTX;
+
+void lychrel(int section) {
+    // MTX.lock();
 
     // Iterate across all available data values, processing them using the 
     //   reverse-digits and sum technique described in class.
-    for (auto i = 0; i < data.size(); ++i) {
+    for (auto i = 0; i < section; ++i) {
+        debug << "CHECK SIGSEGV: " << std::endl;
         Number number = data[i];
+        debug << "PAST" << std::endl;
         
         size_t iter = 0;
         Number n = number;
@@ -111,6 +120,37 @@ int main() {
         records.push_back(record);
     }
 
+    // MTX.unlock();
+
+
+}
+
+//
+// --- main ---
+//
+int main() {
+
+    std::cerr << "Processing " << data.size() << " values ...\n";
+
+
+    std::thread threadsArr[MaxThreads];
+
+    const int QUAD = data.size() / 10;
+    int prevQuad = QUAD + QUAD;
+
+    debug << "Entering threads" << std::endl;
+
+    for(int i = 0; i < MaxThreads; i++) {
+        threadsArr[i] = std::thread(&lychrel, prevQuad);
+        prevQuad += QUAD;
+    }
+
+    debug << "main thread" << std::endl;
+
+    for(int i = 0; i < MaxThreads; i++) {
+        threadsArr[i].join();
+    }
+
     // Output our final results
     std::cout << "\nmaximum number of iterations = " << maxIter << "\n";
     for (auto& [number, palindrome] : records) {
@@ -119,4 +159,5 @@ int main() {
             << " : [" << palindrome.size() << "] "
             << palindrome << "\n";
     }
+
 }
