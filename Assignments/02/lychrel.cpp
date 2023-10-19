@@ -34,7 +34,7 @@ struct Record {
 using Records = std::vector<Record>;
 
 // Application specific constants
-const size_t MaxIterations = 7500;
+const size_t MaxIterations = 153;
 const size_t MaxThreads = 10;
 
 size_t maxIter = 0;  // Records the current maximum number of iterations
@@ -52,55 +52,70 @@ void lychrel(size_t chunkSize, int id) {
 
     int LastID = MaxThreads - 1;
 
-    auto start = id * chunkSize;
-    auto end = std::min(data.size(), start + chunkSize);
 
-    for(auto i = start; i < end; i++) {
-        Number number = data[i];
+        // Number number;
     
-        size_t iter = 0;
+
+        // Number n = number;
+
+        std::vector<Number> curValues(chunkSize, Number());
+
+        auto start = id * chunkSize;
+        auto end = std::min(data.size(), start + chunkSize);
+
+        data.getNext(std::min(chunkSize, data.size()), curValues);
+
+    for(auto& number : curValues) {
         Number n = number;
+        size_t iter = 0;
 
-        while (!n.is_palindrome() && ++iter < MaxIterations) {
-            Number sum(n.size());   // Value used to store current sum of digits
-            Number r = n.reverse(); // reverse the digits of the value
+        // data.getNext(chunkSize, curValues);
 
-            auto rd = n.begin(); 
-            
-            bool carry = false;  // flag to indicate if we had a carry
 
-            std::transform(n.rbegin(), n.rend(), sum.rbegin(), 
-                [&](auto d) {
-                    auto v = d + *rd++ + carry;
+        // for(auto i = start; i < end; i++) {
+            // n = curValues[i];
 
-                    carry = v > 9;
-                    if (carry) { v -= 10; }
 
-                    return v;
-                }
-            );
+            while (!n.is_palindrome() && ++iter < MaxIterations) {
+                Number sum(n.size());   // Value used to store current sum of digits
+                Number r = n.reverse(); // reverse the digits of the value
 
-            // If there's a final carry value, prepend that to the sum
-            if (carry) { sum.push_front(1); }
+                auto rd = n.begin(); 
+                
+                bool carry = false;  // flag to indicate if we had a carry
 
-            n = sum;
-        }
+                std::transform(n.rbegin(), n.rend(), sum.rbegin(), 
+                    [&](auto d) {
+                        auto v = d + *rd++ + carry;
 
-        {
-            std::lock_guard lock{MTX};
-        
-            if (iter < maxIter || iter == MaxIterations) { 
-                Record record{number, n};
-                if (iter > maxIter) {
-                    records.clear();
-                    maxIter = iter;
-                }
+                        carry = v > 9;
+                        if (carry) { v -= 10; }
 
-                records.push_back(record);
+                        return v;
+                    }
+                );
 
+                // If there's a final carry value, prepend that to the sum
+                if (carry) { sum.push_front(1); }
+
+                n = sum;
             }
-        }
 
+            
+                if (iter <= maxIter || iter == MaxIterations) { 
+                    continue;
+                }
+            
+                    Record record{number, n};
+                    if (iter > maxIter) {
+                        std::lock_guard lock{MTX};
+                        records.clear();
+                        maxIter = iter;
+                    }
+
+                    records.push_back(record);
+
+        // }
     }
 
     barrier.arrive_and_wait();
@@ -121,13 +136,13 @@ int main() {
 
     std::thread threadsArr[MaxThreads];
 
-    const int QUAD = data.size() / 10;
-    int prevQuad = QUAD + QUAD;
-
     debug << "Entering threads" << std::endl;
 
-    for(int i = 0; i < MaxThreads; i++) {
-        threadsArr[i] = std::thread (&lychrel, data.size() / MaxThreads + 1, i);
+    const size_t chunkSize = (data.size() + (1 - MaxThreads % 2)) / MaxThreads;
+    // data.size() / MaxThreads + 1
+
+    for(auto i = 0; i < MaxThreads; i++) {
+        threadsArr[i] = std::thread (&lychrel, chunkSize, i);
         (i < MaxThreads - 1) ? threadsArr[i].detach() : threadsArr[i].join();
     }
 
