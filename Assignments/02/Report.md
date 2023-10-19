@@ -18,3 +18,7 @@ The above was all with the test values. I reran the code with the final values
 I reran my code with the final test values and my threaded code
 
 ### runtime on blue with threaded program, final values: 27m3.212s
+
+I again changed my code to use the vector getNext function to chunk my data, and got a significantly faster runtime.
+
+### runtime after using getNext with vectors: 0m21.980s
