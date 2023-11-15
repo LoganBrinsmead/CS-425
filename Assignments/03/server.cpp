@@ -1,5 +1,5 @@
-
 #include <iostream>
+#include <future>
 
 // These are custom classes that encode the web transactions.  They're
 //   actually quite simple (mostly because we're solving a very limited)
@@ -41,8 +41,7 @@ int main(int argc, char* argv[]) {
     //   request.  When the request is made, our connection "accepts"
     //   the connection, and starts a session.
     while (connection) {
-
-        // A session is composed of a bunch of requests (from the "client",
+        std::async(std::launch::async, [&](){        // A session is composed of a bunch of requests (from the "client",
         //   like a web browser), and responses from us, the web "server".
         //   Each request is merely an ASCII string (with some special
         //   characters specially encoded.  We don't implement all that
@@ -103,5 +102,7 @@ int main(int argc, char* argv[]) {
         // We keep using the same session until we get an empty
         //   message, which indicates this session is over.
         session << response;
+});
+
     }
 }
