@@ -8,6 +8,42 @@
 #include "HTTPRequest.h"
 #include "HTTPResponse.h"
 
+template <typename Data, ptrdiff_t MaxDataSlots = 8>
+class RingBuffer : public std::vector<Data> {
+    std::counting_semaphore<MaxDataSlots> storable{MaxDataSlots};
+    std::counting_semaphore<MaxDataSlots> readable{0};
+    std::mutex storeMutex;
+    std::mutex readMutex;
+
+    public:
+    RingBuffer(size_t count = MaxDataSlots) : std::vector<Data>(count)
+        { /* Empty */};
+
+    void store(const Data& t) {
+        storable.acquire();
+        {
+            std::lock_guard lock{storeMutex};
+            this->at(nextStorable) = t;
+            ++nextStorable;
+        }
+        readable.release();
+    }
+
+    Data read() {
+        Data t;
+        readable.acquire();
+        {
+            std::lock_guard lock{readMutex};
+            t = this->at(nextReadable);
+            ++nextReadable;
+        }
+        storable.release();
+        return t;
+    }
+
+
+};
+
 // This is the unique networking "port" that your web server is communicating
 //   with the web browser with.  Make sure to use you're unique port, otherwise
 //   you'll stomp on other people trying to do the same thing.
@@ -20,7 +56,7 @@
 //
 //  (Don't use any of them.  Generally, above 9000 is usually pretty clear)
 //
-const uint16_t DefaultPort = 9113; // Update this variable with your assigned port value
+const uint16_t DefaultPort = 8003; // Update this variable with your assigned port value
 
 int main(int argc, char* argv[]) {
     uint16_t port = argc > 1 ? std::stol(argv[1]) : DefaultPort;
@@ -37,11 +73,33 @@ int main(int argc, char* argv[]) {
     //   after the color (:) in the URL.
     Connection connection(port);
 
+    std::jthread producer{[&](){
+        Data data = 0;
+        while (!quittingTime) {
+            buffer.store(data++);
+            std::this_thread::sleep_for(3ms);
+        }
+        std::cout << "Producer: I'm done\n";
+    }};
+
+    std::jthread consumer{[&](){
+        FrameIndex next = 0;
+        while (!quittingTime) {
+            buffer.acquire();
+            data = slots[next];
+            ++next %= NumSlots;
+            // Use data
+            fillable.release();
+    }
+        std::cout << "Consumer: I'm done for the day\n";
+    }};
+
     // Process sessions.  A session begins with a web browser making a
     //   request.  When the request is made, our connection "accepts"
     //   the connection, and starts a session.
     while (connection) {
-        std::async(std::launch::async, [&](){        // A session is composed of a bunch of requests (from the "client",
+        RingBuffer<Data, NumSlots> buffer;
+            // A session is composed of a bunch of requests (from the "client",
         //   like a web browser), and responses from us, the web "server".
         //   Each request is merely an ASCII string (with some special
         //   characters specially encoded.  We don't implement all that
@@ -102,7 +160,6 @@ int main(int argc, char* argv[]) {
         // We keep using the same session until we get an empty
         //   message, which indicates this session is over.
         session << response;
-});
 
     }
 }
