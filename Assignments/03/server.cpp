@@ -1,11 +1,14 @@
 #include <iostream>
 #include <future>
+#include <chrono>
 #include <thread>
 #include <vector>
 
 #include "Connection.h"
 #include "HTTPRequest.h"
 #include "HTTPResponse.h"
+
+using namespace std::chrono_literals;
 
 template<typename T, size_t N>
 class RingBuffer : public std::vector<T> {
@@ -24,25 +27,25 @@ class RingBuffer : public std::vector<T> {
     public: 
         RingBuffer() {
             size_type count = N;
-            resize(count);
+            this->resize(count);
         }
 
         void store(const T& t) {
             storable.acquire();
             {
                 std::lock_guard lock{storeMutex};
-                assign(nextStorable, t);
+                this->at(nextStorable) = t;
                 nextStorable = ++nextStorable % N;
             }
             readable.release();
         }
 
-        T&& read() {
+        T read() {
             T t;
             readable.acquire();
             {
                 std::lock_guard lock{readMutex};
-                t = at(nextReadable);
+                t = this->at(nextReadable);
                 nextReadable = ++nextReadable % N;
             }
             storable.release();
@@ -50,24 +53,43 @@ class RingBuffer : public std::vector<T> {
         }
 };
 
-// my port wasn't working
-const uint16_t DefaultPort = 8003; 
+const uint16_t DefaultPort = 8002; 
+
 
 int main(int argc, char* argv[]) {
     uint16_t port = argc > 1 ? std::stol(argv[1]) : DefaultPort;
 
+    const int NumSlots = 8;
+
+    std::counting_semaphore<NumSlots> fillable{8};
+    std::counting_semaphore<NumSlots> ready{0};
+    // std::vector<HTTPRequest> slots(NumSlots);
+
+
+    RingBuffer<int, 8> buffer;
+
     Connection connection(port);
-
-
-    RingBuffer<HTTPRequest, 8> buffer;
 
     
     const char* root = "/home/faculty/shreiner/public_html/03";
 
     std::jthread producer{[&](){
-        Data data = 0;
+        // Data data = 0;
         while (connection) {
             Session session(connection.accept());
+
+
+            buffer.store(connection.accept());
+            std::this_thread::sleep_for(3ms);
+        }
+        std::cout << "Producer: I'm done\n";
+    }};
+
+    std::jthread consumer{[&](){
+        int next = 0;
+        while (connection) {
+            Session session(buffer.read());
+
 
             std::string msg;
             session >> msg;
@@ -75,23 +97,12 @@ int main(int argc, char* argv[]) {
             
             HTTPRequest request(msg);
 
-            buffer.store(request);
-            std::this_thread::sleep_for(3ms);
-        }
-        std::cout << "Producer: I'm done\n";
-    }};
-
-    std::jthread consumer{[&](){
-        FrameIndex next = 0;
-        while (connection) {
-            buffer.acquire();
-
-            HTTPResponse response(slots[next], root);
+            HTTPResponse response(request, root);
             session << response;
 
-            ++next %= NumSlots;
+            // ++next %= NumSlots;
             
-            fillable.release();
+            // fillable.release();
     }
         std::cout << "Consumer: I'm done for the day\n";
     }};
